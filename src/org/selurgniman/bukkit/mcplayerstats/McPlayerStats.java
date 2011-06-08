@@ -1,6 +1,7 @@
 package org.selurgniman.bukkit.mcplayerstats;
 
 import java.util.Collections;
+import java.util.Hashtable;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.logging.Logger;
@@ -52,6 +53,10 @@ import org.bukkit.util.config.Configuration;
 public class McPlayerStats extends JavaPlugin {
 	private final Logger log = Logger.getLogger("Minecraft."+McPlayerStats.class.getName());
     private Configuration config=null;
+    
+    private Hashtable categories;
+    private Hashtable statistics;
+    private Hashtable players;
     
     // NOTE: There should be no need to define a constructor any more for more info on moving from
     // the old constructor see:
