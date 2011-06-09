@@ -1,0 +1,3 @@
+name: McPlayerStats
+main: org.selurgniman.bukkit.mcplayerstats.McPlayerStats
+version: 0.1

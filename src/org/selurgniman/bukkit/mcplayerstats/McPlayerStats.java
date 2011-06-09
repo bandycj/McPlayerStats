@@ -1,5 +1,6 @@
 package org.selurgniman.bukkit.mcplayerstats;
 
+import java.sql.SQLException;
 import java.util.Collections;
 import java.util.Hashtable;
 import java.util.IdentityHashMap;
@@ -10,8 +11,10 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.entity.Boat;
 import org.bukkit.entity.Creature;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.Minecart;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
 import org.bukkit.event.Event.Priority;
@@ -26,6 +29,7 @@ import org.bukkit.event.entity.EntityDamageEvent.DamageCause;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.EntityListener;
 import org.bukkit.event.player.PlayerAnimationEvent;
+import org.bukkit.event.player.PlayerAnimationType;
 import org.bukkit.event.player.PlayerChatEvent;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
@@ -54,17 +58,26 @@ public class McPlayerStats extends JavaPlugin {
 	private final Logger log = Logger.getLogger("Minecraft."+McPlayerStats.class.getName());
     private Configuration config=null;
     
-    private Hashtable categories;
-    private Hashtable statistics;
-    private Hashtable players;
+    private final MCStatsDB database = new MCStatsDB("jdbc:sqlserver://127.0.0.1;databaseName=MCStats;", "mcsql", "mcsql101");
+    
+    private Hashtable<String, Integer> categories;
+    private Hashtable<String, Integer> statistics;
+    private Hashtable<String, Integer> players;
+    
+    private Hashtable<String, Location> playerLastLocations;
     
     // NOTE: There should be no need to define a constructor any more for more info on moving from
     // the old constructor see:
     // http://forums.bukkit.org/threads/too-long-constructor.5032/
-
+    
     public void onDisable() {
         // TODO: Place any custom disable code here
 
+    	try {
+			database.Close();
+		} catch (Exception e) {
+			log.info(e.toString());
+		}
         // NOTE: All registered events are automatically unregistered when a plugin is disabled
 
     	config.save();
@@ -75,6 +88,19 @@ public class McPlayerStats extends JavaPlugin {
     	config = this.getConfiguration();
     	config.load();
     	List<World> worlds=this.getServer().getWorlds();
+    	
+    	playerLastLocations = new Hashtable<String, Location>();
+    	
+    	try {
+			database.Open();
+			
+			categories = database.getCategories();
+			statistics = database.getStatistics();
+			players = database.getPlayers();
+			
+		} catch (Exception e) {
+			log.info(e.toString());
+		}
     	
     	for (World world:worlds){
     		String worldName=world.getName();
@@ -94,9 +120,11 @@ public class McPlayerStats extends JavaPlugin {
     	EntityActionListener entityActionListener = new EntityActionListener();
     	
         PluginManager pm = getServer().getPluginManager();
-        for (Event.Type eventType:Event.Type.values()){
+        for (Event.Type eventType:Event.Type.values()){        	
         	String eventName=eventType.toString().toUpperCase();
-        	if (eventName.startsWith("PLAYER")){
+        	
+        	//Error said "PLAYER_INVENTORY not supported, so excluding it.
+        	if (eventName.startsWith("PLAYER") && eventType != Event.Type.PLAYER_INVENTORY){
         		pm.registerEvent(eventType, playerActionListener, Priority.Normal, this);
         	} else if (eventName.startsWith("BLOCK")){
         		pm.registerEvent(eventType, blockActionListener, Priority.Normal, this);
@@ -113,15 +141,84 @@ public class McPlayerStats extends JavaPlugin {
         
     }
     
+    private int getPlayerId(String name) throws Exception
+    {
+    	Integer value;
+    	
+    	if (!players.containsKey(name.toLowerCase()))
+    	{
+    		log.info("Unknown Player Key: " + name.toLowerCase());
+    		//database.AddPlayer(name);
+    		players = database.getPlayers();				
+    	}
+    	
+    	value = players.get(name.toLowerCase());    	
+    	return value.intValue();
+    }
+    
+    private int getStatisticId(String name) throws Exception
+    {
+    	Integer value;
+    	
+    	if (!statistics.containsKey(name.toLowerCase()))
+    	{    	    		
+    		log.info("Unknown Statistic Key: " + name.toLowerCase());
+    		//database.AddStatistic(name);
+    		statistics = database.getStatistics();				
+
+    	}
+    	
+    	value = statistics.get(name.toLowerCase());    	
+    	return value.intValue();    	 
+    }
+    
+    private int getCategoryId(String name) throws Exception
+    {
+    	Integer value;
+    	
+    	if (!categories.containsKey(name.toLowerCase()))
+    	{
+    		log.info("Unknown Category Key: " + name.toLowerCase());
+    		//database.AddCategory(name);
+    		categories = database.getCategories();				
+    	}
+
+    	value = categories.get(name.toLowerCase());    	
+    	return value.intValue();
+    }
+    
+    private void IncrementStatistic(Player player, String statisticName, String categoryName, int amount)
+    {
+    	int categoryId;
+    	int playerId;
+    	int statisticId;
+    	
+    	statisticName = statisticName.replace("_", "");
+    	
+    	try {
+			categoryId = getCategoryId(categoryName);
+    		playerId = getPlayerId(player.getName());
+    		statisticId = getStatisticId(statisticName);
+    		
+			database.IncrementPlayerStatistic(playerId, categoryId, statisticId, amount);
+		} catch (Exception e) {
+			log.info("Couldn't increment statistic: " + statisticName + ", category: " + categoryName);
+		}
+    }
+    
+    
+    
     private class PlayerActionListener extends PlayerListener {
     	/**
          * Count player item drops.
          */
         @Override
-    	public void onPlayerDropItem(PlayerDropItemEvent event) {
+    	public void onPlayerDropItem(PlayerDropItemEvent event) {        	
     		Player player = event.getPlayer();
     		Material material = event.getItemDrop().getItemStack().getType();
-    	}
+    		
+    		IncrementStatistic(player, material.toString(), "itemdrop", 1);    		
+    	}        
     	/**
          * Count player item pickups.
          */
@@ -129,6 +226,8 @@ public class McPlayerStats extends JavaPlugin {
     	public void onPlayerPickupItem(PlayerPickupItemEvent event) {
     		Player player = event.getPlayer();
     		Material material = event.getItem().getItemStack().getType();
+    		
+    		IncrementStatistic(player, material.toString(), "itempickup", 1);
     	}
         /**
          * Count player arm swings.
@@ -136,6 +235,11 @@ public class McPlayerStats extends JavaPlugin {
         @Override
         public void onPlayerAnimation(PlayerAnimationEvent event) {
         	Player player = event.getPlayer();
+        	
+        	if (event.getAnimationType() == PlayerAnimationType.ARM_SWING)
+        	{
+        		IncrementStatistic(player, "armswing", "stats", 1);
+        	}        	
         }
         /**
          * Count player chat.
@@ -143,6 +247,9 @@ public class McPlayerStats extends JavaPlugin {
         @Override
         public void onPlayerChat(PlayerChatEvent event) {
         	Player player = event.getPlayer();
+        	
+        	IncrementStatistic(player, "chat", "stats", 1);
+        	IncrementStatistic(player, "chatletters", "stats", event.getMessage().length());
         }
         /**
          * Count player commands issued.
@@ -150,6 +257,8 @@ public class McPlayerStats extends JavaPlugin {
         @Override
         public void onPlayerCommandPreprocess(PlayerCommandPreprocessEvent event) {
         	Player player = event.getPlayer();
+        	
+        	IncrementStatistic(player, "command", "stats", 1);
         }
         /**
          * Count player logins.
@@ -157,6 +266,8 @@ public class McPlayerStats extends JavaPlugin {
         @Override
         public void onPlayerLogin(PlayerLoginEvent event) {
         	Player player = event.getPlayer();
+        	
+        	IncrementStatistic(player, "login", "stats", 1);
         }
         /**
          * Count player logouts.
@@ -164,13 +275,54 @@ public class McPlayerStats extends JavaPlugin {
         @Override
         public void onPlayerQuit(PlayerQuitEvent event) {
         	Player player = event.getPlayer();
+        	
+        	IncrementStatistic(player, "logout", "stats", 1);
         }
         /**
          * Count player steps.
          */
         @Override
         public void onPlayerMove(PlayerMoveEvent event) {
+        	Location lastLocation;
+        	
         	Player player = event.getPlayer();
+
+        	lastLocation = playerLastLocations.get(player.getName().toString());
+        	
+        	if (lastLocation == null)
+        	{
+        		playerLastLocations.put(player.getName().toString(), event.getTo());
+        	}
+        	else
+        	{
+        		//Only count if they've moved at least 1 block in some direction except up/down?
+        		
+        		int x1, x2;
+        		int y1, y2;
+        		
+        		x1 = lastLocation.getBlockX();
+        		x2 = event.getTo().getBlockX();
+        		
+        		y1 = lastLocation.getBlockZ();
+        		y2 = event.getTo().getBlockZ();
+        		
+        		if ( x1 != x2 || y1 != y2 )
+        		{
+        			int distance;
+        			
+        			distance = (int) Math.sqrt(
+        										Math.pow(x2 - x1, 2) + 
+        										Math.pow(y2 - y1, 2)
+        									   );
+        			
+        			if (distance >= 1)
+        			{
+        				playerLastLocations.put(player.getName(), event.getTo());
+        				IncrementStatistic(player, "move", "stats", distance);
+        			}
+        		}
+        			
+        	}
         }
         /**
          * Count player respawns.
@@ -178,6 +330,8 @@ public class McPlayerStats extends JavaPlugin {
         @Override
         public void onPlayerRespawn(PlayerRespawnEvent event) {
         	Player player = event.getPlayer();
+        	
+        	//?
         }
         /**
          * Count player teleports.
@@ -185,6 +339,8 @@ public class McPlayerStats extends JavaPlugin {
         @Override
         public void onPlayerTeleport(PlayerTeleportEvent event) {
         	Player player = event.getPlayer();
+        	
+        	IncrementStatistic(player, "teleport", "stats", 1);
         }
     }
     
@@ -195,6 +351,9 @@ public class McPlayerStats extends JavaPlugin {
         @Override 
     	public void onBlockPlace(BlockPlaceEvent event){
     		 Player player = event.getPlayer();
+    		 
+    		 IncrementStatistic(player, event.getBlockPlaced().getType().toString(), "blockcreate", 1);
+    		 IncrementStatistic(player, "totalblockcreate", "stats", 1);
     	 }
         /**
          * Count player block breaks.
@@ -202,6 +361,9 @@ public class McPlayerStats extends JavaPlugin {
         @Override
     	 public void onBlockBreak(BlockBreakEvent event){
     		 Player player = event.getPlayer();
+    		 
+    		 IncrementStatistic(player, event.getBlock().getType().toString(), "blockdestroy", 1);
+    		 IncrementStatistic(player, "totalblockdestroy", "stats", 1);
     	 }
     }
     
@@ -215,6 +377,62 @@ public class McPlayerStats extends JavaPlugin {
     		 if (passenger instanceof Player){
     			 Player player = (Player)passenger;
     			 
+    			 Location lastLocation;
+    			 String key;
+    			 
+    			 String categoryName = null;
+				 
+				 if (event.getVehicle() instanceof Boat)
+				 {
+					 categoryName = "boat";
+				 } else if (event.getVehicle() instanceof Minecart)
+				 {
+					 categoryName = "minecart";
+				 }
+				 	 
+				 if (categoryName != null)
+				 {
+					 key = player.getName() + "v" + categoryName;
+
+					 lastLocation = playerLastLocations.get(key);
+
+					 if (lastLocation == null)
+					 {
+						 playerLastLocations.put(key, event.getTo());
+					 }
+					 else
+					 {
+						 //Only count if they've moved at least 1 block in some direction except up/down?
+
+						 int x1, x2;
+						 int y1, y2;
+
+						 x1 = lastLocation.getBlockX();
+						 x2 = event.getTo().getBlockX();
+
+						 y1 = lastLocation.getBlockZ();
+						 y2 = event.getTo().getBlockZ();
+
+						 if ( x1 != x2 || y1 != y2 )
+						 {
+							 int distance;
+
+							 distance = (int) Math.sqrt(
+									 Math.pow(x2 - x1, 2) + 
+									 Math.pow(y2 - y1, 2)
+							 );
+
+							 if (distance >= 1)
+							 {   						 
+								 playerLastLocations.put(key, event.getTo());
+
+								 IncrementStatistic(player, "move", categoryName, distance);
+							 }
+						 }
+
+					 }
+				 }
+    			 
     		 }
     	 }
         /**
@@ -226,6 +444,21 @@ public class McPlayerStats extends JavaPlugin {
 			if (passenger instanceof Player){
 				Player player = (Player)passenger;
 				
+				String categoryName = null;
+				 
+				 if (event.getVehicle() instanceof Boat)
+				 {
+					 categoryName = "boat";
+				 } 
+				 else if (event.getVehicle() instanceof Minecart)
+				 {
+					 categoryName = "minecart";
+				 }
+				 
+				 if (categoryName != null)
+				 {
+					 IncrementStatistic(player, "enter", categoryName, 1);    							 
+				 }    				
 			}
 	    }
     }
@@ -258,9 +491,15 @@ public class McPlayerStats extends JavaPlugin {
         		// ****************************************************************
             	
             	if (damagee instanceof Player){
+            		Block damageByBlock;
             		player = (Player)damagee;
+            		
+            		damageByBlock = evt.getDamager();
+            		
             		lastDamagedBy.put(player, cause);
             		
+            		IncrementStatistic(player, damageByBlock.getType().toString(), "damagetaken", damage.intValue());
+            		IncrementStatistic(player, "total", "damagetaken", damage.intValue());            		
             	}
     		}
     		/**
@@ -279,9 +518,13 @@ public class McPlayerStats extends JavaPlugin {
             		player = (Player)damagee;
             		lastDamagedBy.put(player, cause);
             		
+            		IncrementStatistic(player, damager.toString().replace("Craft", ""), "damagetaken", damage.intValue());
+            		IncrementStatistic(player, "total", "damagetaken", damage.intValue());
             	} else if (damager instanceof Player && damagee instanceof Creature){
             		player = (Player)damager;
             		
+            		IncrementStatistic(player, damagee.toString().replace("Craft", ""), "damagedealt", damage.intValue());
+            		IncrementStatistic(player, "total", "damagedealt", damage.intValue());
             	}
     		}
     		/**
@@ -300,9 +543,14 @@ public class McPlayerStats extends JavaPlugin {
             		player = (Player)damagee;
             		lastDamagedBy.put(player, cause);
             		
+            		IncrementStatistic(player, damager.toString().replace("Craft", ""), "damagetaken", damage.intValue());
+            		IncrementStatistic(player, "total", "damagetaken", damage.intValue());
+            		
             	} else if (damager instanceof Player && damagee instanceof Creature){
             		player = (Player)damager;
             		
+            		IncrementStatistic(player, damagee.toString().replace("Craft", ""), "damagedealt", damage.intValue());
+            		IncrementStatistic(player, "total", "damagedealt", damage.intValue());
             	}
     		}
     	}
@@ -323,6 +571,8 @@ public class McPlayerStats extends JavaPlugin {
         		if (cause == null){
         			cause = DamageCause.CUSTOM;
         		}
+        		
+        		IncrementStatistic(player, "total", "deaths", 1);
         	}
         }
     }
