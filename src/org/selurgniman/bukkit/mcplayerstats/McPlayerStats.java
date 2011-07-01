@@ -89,7 +89,6 @@ public class McPlayerStats extends JavaPlugin {
 	public void onEnable() {
 		config = this.getConfiguration();
 		config.load();
-		List<World> worlds = this.getServer().getWorlds();
 
 		playerLastLocations = new Hashtable<String, Location>();
 
@@ -102,17 +101,6 @@ public class McPlayerStats extends JavaPlugin {
 
 		} catch (Exception e) {
 			log.info(e.toString());
-		}
-
-		for (World world : worlds) {
-			String worldName = world.getName();
-			List<String> rules = config.getStringList("GameWarden." + worldName + ".extinct", null);
-			if (rules.size() == 0) {
-				config.setProperty("GameWarden." + world.getName(), "");
-				config.save();
-			}
-
-			Collections.sort(rules);
 		}
 
 		// Register our events
