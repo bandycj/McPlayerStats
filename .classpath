@@ -4,6 +4,7 @@
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.USER_LIBRARY/Bukkit"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.USER_LIBRARY/hibernate"/>
-	<classpathentry exported="true" kind="lib" path="D:/Users/Jimmy De La Garza/Desktop/MinecraftServer/sqljdbc4.jar"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.USER_LIBRARY/SQLServer"/>
+	<classpathentry kind="lib" path="lib/sqljdbc4.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
