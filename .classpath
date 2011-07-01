@@ -5,5 +5,6 @@
 	<classpathentry kind="con" path="org.eclipse.jdt.USER_LIBRARY/Bukkit"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.USER_LIBRARY/hibernate"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.USER_LIBRARY/SQLServer"/>
+	<classpathentry kind="lib" path="lib/sqljdbc4.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
