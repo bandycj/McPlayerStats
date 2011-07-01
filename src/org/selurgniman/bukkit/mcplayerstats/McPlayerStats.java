@@ -1,6 +1,6 @@
 package org.selurgniman.bukkit.mcplayerstats;
 
-import java.sql.SQLException;
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.Hashtable;
 import java.util.IdentityHashMap;
@@ -25,15 +25,14 @@ import org.bukkit.event.entity.EntityDamageByBlockEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageByProjectileEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
-import org.bukkit.event.entity.EntityDamageEvent.DamageCause;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.EntityListener;
+import org.bukkit.event.entity.EntityDamageEvent.DamageCause;
 import org.bukkit.event.player.PlayerAnimationEvent;
 import org.bukkit.event.player.PlayerAnimationType;
 import org.bukkit.event.player.PlayerChatEvent;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
-import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerListener;
 import org.bukkit.event.player.PlayerLoginEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
@@ -44,10 +43,13 @@ import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.event.vehicle.VehicleEnterEvent;
 import org.bukkit.event.vehicle.VehicleListener;
 import org.bukkit.event.vehicle.VehicleMoveEvent;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.ShapedRecipe;
 import org.bukkit.plugin.PluginDescriptionFile;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.util.config.Configuration;
+
 
 /**
  * Sample plugin for Bukkit
@@ -65,6 +67,7 @@ public class McPlayerStats extends JavaPlugin {
     private Hashtable<String, Integer> players;
     
     private Hashtable<String, Location> playerLastLocations;
+    private Hashtable<String, Calendar> playerLastLogin;
     
     // NOTE: There should be no need to define a constructor any more for more info on moving from
     // the old constructor see:
@@ -90,6 +93,7 @@ public class McPlayerStats extends JavaPlugin {
     	List<World> worlds=this.getServer().getWorlds();
     	
     	playerLastLocations = new Hashtable<String, Location>();
+    	playerLastLogin	= new Hashtable<String, Calendar>();
     	
     	try {
 			database.Open();
@@ -101,9 +105,17 @@ public class McPlayerStats extends JavaPlugin {
 		} catch (Exception e) {
 			log.info(e.toString());
 		}
+		
     	
     	for (World world:worlds){
     		String worldName=world.getName();
+    		
+    		for (Player player:world.getPlayers())
+    		{
+    			playerLastLogin.put(player.getName(), Calendar.getInstance());
+    			log.info("Existing player found: " + player.getName() + ". Creating login time as current.");
+    		}
+    		
     		List<String> rules=config.getStringList("GameWarden."+worldName+".extinct", null);
     		if (rules.size()==0){
     			config.setProperty("GameWarden."+world.getName(),"");
@@ -133,11 +145,25 @@ public class McPlayerStats extends JavaPlugin {
          	} else if (eventName.startsWith("ENTITY")){
          		pm.registerEvent(eventType, entityActionListener, Priority.Normal, this);
          	}
+        	
+        	//pm.registerEvent(Type.PLAYER_PICKUP_ITEM, playerActionListener, Priority.Normal, this);
         }
 
         // EXAMPLE: Custom code, here we just output some info so we can check all is well
         PluginDescriptionFile pdfFile = this.getDescription();
         log.info( pdfFile.getName() + " version " + pdfFile.getVersion() + " is enabled!" );
+        
+        ShapedRecipe recipe;
+        ItemStack sponge;
+        
+        sponge = new ItemStack(Material.SPONGE);
+        sponge.setAmount(1);
+        
+        recipe = new  ShapedRecipe(new ItemStack(Material.SPONGE, 1));
+        recipe.shape("###", "###", "###");
+        recipe.setIngredient(Character.valueOf('#'),Material.FEATHER);
+        
+        this.getServer().addRecipe(recipe);
         
     }
     
@@ -224,10 +250,18 @@ public class McPlayerStats extends JavaPlugin {
          */
         @Override
     	public void onPlayerPickupItem(PlayerPickupItemEvent event) {
-    		Player player = event.getPlayer();
-    		Material material = event.getItem().getItemStack().getType();
-    		
-    		IncrementStatistic(player, material.toString(), "itempickup", 1);
+        	//This is bugged, it fires on "ATTEMPT" to pickup, not when an item is 
+        	//actually picked up.
+
+//        	Player player = event.getPlayer();
+//    		Material material = event.getItem().getItemStack().getType();
+//
+//    		if (!event.isCancelled())
+//    		{
+//	    		log.info(String.format("Item is %1s", event.isCancelled()));
+//	    		
+//	    		IncrementStatistic(player, material.toString(), "itempickup", 1);
+//    		}
     	}
         /**
          * Count player arm swings.
@@ -265,18 +299,53 @@ public class McPlayerStats extends JavaPlugin {
          */
         @Override
         public void onPlayerLogin(PlayerLoginEvent event) {
-        	Player player = event.getPlayer();
+        	Player player;
+        	
+        	player = event.getPlayer();
+        	
+        	playerLastLogin.put(player.getName(), Calendar.getInstance());
         	
         	IncrementStatistic(player, "login", "stats", 1);
+        	
+        	try {
+        		database.UpdatePlayerLastLoggedIn(getPlayerId(player.getName()));			
+			} catch (Exception e) {
+				log.info("Error updating Player Last Logged In value.");
+				log.info(e.toString());
+			}
         }
         /**
          * Count player logouts.
          */
         @Override
         public void onPlayerQuit(PlayerQuitEvent event) {
-        	Player player = event.getPlayer();
+        	double playerSecondsLoggedIn;
+        	Calendar playerLogin;        	
+        	Player player;
+        	
+        	player = event.getPlayer();
+        	
+        	playerLogin = playerLastLogin.get(player.getName());
+        	
+        	if (playerLogin != null)
+        	{
+        		Calendar now;
+        		
+        		now = Calendar.getInstance();
+        		
+        		playerSecondsLoggedIn = ((now.getTimeInMillis() - playerLogin.getTimeInMillis()) / 1000);
+        		
+        		IncrementStatistic(player, "playedfor", "stats", (int)playerSecondsLoggedIn);
+        	}
         	
         	IncrementStatistic(player, "logout", "stats", 1);
+        	
+        	try {
+        		database.UpdatePlayerLastLoggedOut(getPlayerId(player.getName()));			
+			} catch (Exception e) {
+				log.info("Error updating Player Last Logged Out value.");
+				log.info(e.toString());
+			}
         }
         /**
          * Count player steps.
@@ -571,7 +640,7 @@ public class McPlayerStats extends JavaPlugin {
         		if (cause == null){
         			cause = DamageCause.CUSTOM;
         		}
-        		
+        		        		
         		IncrementStatistic(player, "total", "deaths", 1);
         	}
         }

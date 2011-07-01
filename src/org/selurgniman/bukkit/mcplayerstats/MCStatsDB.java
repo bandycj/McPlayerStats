@@ -106,6 +106,30 @@ public class MCStatsDB {
 		return ExecuteHashtable("get_statistics", "Name", "ID");
 	}
 	
+	public void UpdatePlayerLastLoggedOut(int playerId) throws SQLException
+	{
+		PreparedStatement statement;
+		
+		statement = connection.prepareStatement("{call update_playerLastLoggedOut(?)}");
+		
+		statement.setInt(1, playerId);
+		
+		statement.execute();
+		statement.close();
+	}
+	
+	public void UpdatePlayerLastLoggedIn(int playerId) throws SQLException
+	{
+		PreparedStatement statement;
+		
+		statement = connection.prepareStatement("{call update_playerLastLoggedIn(?)}");
+		
+		statement.setInt(1, playerId);
+		
+		statement.execute();
+		statement.close();
+	}	
+	
 	public void IncrementPlayerStatistic(int playerId, int categoryId, int statisticId, int valueIncrementBy) throws Exception
 	{
 		PreparedStatement statement;
@@ -136,7 +160,7 @@ public class MCStatsDB {
 		
 		return result;
 	}
-	
+		
 	private Hashtable<String, Integer> ExecuteHashtable(String procedureName, String keyName, String valueName) throws Exception
 	{
 		Hashtable<String, Integer> returnValue = null;
