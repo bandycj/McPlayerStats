@@ -583,7 +583,22 @@ public class McPlayerStats extends JavaPlugin {
 					cause = "UNKNOWN";
 				}
 
-				IncrementStatistic(player, cause, event.getEventName(), 1);
+				//Better event to distinguish these automatically?
+				IncrementStatistic(player, cause, "ENTITY_KILLED_PLAYER", 1);
+			} 
+			else 
+			{
+				EntityDamageEvent causedEvent = entity.getLastDamageCause();
+				
+				if (causedEvent instanceof EntityDamageByEntityEvent)
+				{
+					Entity damager = ((EntityDamageByEntityEvent)causedEvent).getDamager();
+					
+					if (damager != null && damager instanceof Player)
+					{
+						IncrementStatistic((Player)damager, entity.toString().replace("Craft", ""), "PLAYER_KILLED_ENTITY", 1);
+					}
+				}
 			}
 		}
 	}
