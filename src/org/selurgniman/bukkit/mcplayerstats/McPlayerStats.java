@@ -54,7 +54,7 @@ public class McPlayerStats extends JavaPlugin
 	public void onEnable()
 	{ 
 		model.open();
-		
+				
 		for (World world : this.getServer().getWorlds())
 		{
 			for (Player player : world.getPlayers())

@@ -32,23 +32,24 @@ public class PlayerStatsModel
 		this.database = new MCStatsDB(
 				"jdbc:sqlserver://127.0.0.1;databaseName=MCStats;",
 				"mcsql",
-				"mcsql101");
-		try
-		{
-			this.categories = database.getCategories();
-			this.statistics = database.getStatistics();
-			this.players = database.getPlayers();
-		}
-		catch (Exception e)
-		{
-			log.info(e.getLocalizedMessage());
-		}	
+				"mcsql101");		
 	}
 	
 	public void open(){
 		try
 		{
-			database.Open();
+			try
+			{
+				database.Open();
+				
+				this.categories = database.getCategories();
+				this.statistics = database.getStatistics();
+				this.players = database.getPlayers();
+			}
+			catch (Exception e)
+			{
+				log.info(e.toString());
+			}	
 		}
 		catch (Exception e)
 		{
@@ -173,6 +174,7 @@ public class PlayerStatsModel
 					+ categoryName
 					+ ", player: "
 					+ player.getDisplayName());
+			
 			log.info(e.toString());
 		}
 	}
