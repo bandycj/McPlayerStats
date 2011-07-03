@@ -8,21 +8,15 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.logging.Logger;
-
-import org.selurgniman.bukkit.mcplayerstats.McPlayerStats;
 
 public class MCStatsDB {
-	@SuppressWarnings("unused")
-	private final Logger log = Logger.getLogger("Minecraft."
-			+ McPlayerStats.class.getName());
-	
+
 	private String url;
 	private String userName;
 	private String password;
 	
 	private Connection connection;
-
+	
 	public MCStatsDB(String url, String userName, String password) {
 		this.url = url;
 		this.userName = userName;
@@ -97,6 +91,7 @@ public class MCStatsDB {
 		statement.close();		
 	}
 	
+	
 	public ConcurrentMap<String, Integer> getPlayers() throws Exception
 	{
 		return ExecuteConcurrentMap("get_players", "Name", "ID");
@@ -136,7 +131,7 @@ public class MCStatsDB {
 		statement.close();
 	}	
 	
-	protected void IncrementPlayerStatistic(int playerId, int categoryId, int statisticId, int valueIncrementBy) throws Exception
+	public void IncrementPlayerStatistic(int playerId, int categoryId, int statisticId, int valueIncrementBy) throws Exception
 	{
 		PreparedStatement statement;
 		
