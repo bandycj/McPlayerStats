@@ -1,5 +1,6 @@
 package org.selurgniman.bukkit.mcplayerstats;
 
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.Hashtable;
 import java.util.IdentityHashMap;
@@ -9,14 +10,17 @@ import java.util.logging.Logger;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
+import org.bukkit.block.Block;
 import org.bukkit.entity.Boat;
 import org.bukkit.entity.Creature;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Minecart;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Vehicle;
 import org.bukkit.event.Event;
 import org.bukkit.event.Event.Priority;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockEvent;
 import org.bukkit.event.block.BlockListener;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByBlockEvent;
@@ -31,6 +35,7 @@ import org.bukkit.event.player.PlayerAnimationType;
 import org.bukkit.event.player.PlayerChatEvent;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
+import org.bukkit.event.player.PlayerEvent;
 import org.bukkit.event.player.PlayerListener;
 import org.bukkit.event.player.PlayerLoginEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
@@ -41,6 +46,7 @@ import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.event.vehicle.VehicleEnterEvent;
 import org.bukkit.event.vehicle.VehicleListener;
 import org.bukkit.event.vehicle.VehicleMoveEvent;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.PluginDescriptionFile;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -53,6 +59,7 @@ import org.bukkit.util.config.Configuration;
  */
 public class McPlayerStats extends JavaPlugin {
 	private final Logger log = Logger.getLogger("Minecraft." + McPlayerStats.class.getName());
+	private final String PLAYER_EVENT = "PLAYER_EVENT";
 	private Configuration config = null;
 
 	private final MCStatsDB database = new MCStatsDB(
@@ -63,8 +70,10 @@ public class McPlayerStats extends JavaPlugin {
 	private Hashtable<String, Integer> categories;
 	private Hashtable<String, Integer> statistics;
 	private Hashtable<String, Integer> players;
+	private Hashtable<String, Calendar> playerLastLogin;
 
 	private Hashtable<String, Location> playerLastLocations;
+	
 
 	// NOTE: There should be no need to define a constructor any more for more
 	// info on moving from
@@ -89,8 +98,9 @@ public class McPlayerStats extends JavaPlugin {
 	public void onEnable() {
 		config = this.getConfiguration();
 		config.load();
-
+		
 		playerLastLocations = new Hashtable<String, Location>();
+		playerLastLogin	= new Hashtable<String, Calendar>();
 
 		try {
 			database.Open();
@@ -102,6 +112,17 @@ public class McPlayerStats extends JavaPlugin {
 		} catch (Exception e) {
 			log.info(e.toString());
 		}
+		
+		for (World world:this.getServer().getWorlds()){
+    		String worldName=world.getName();
+    		
+    		for (Player player:world.getPlayers())
+    		{
+    			playerLastLogin.put(player.getName(), Calendar.getInstance());
+    			log.info("Existing player found: " + player.getName() + ". Creating login time as current.");
+    		}
+    	}
+		
 
 		// Register our events
 		PlayerActionListener playerActionListener = new PlayerActionListener();
@@ -136,8 +157,8 @@ public class McPlayerStats extends JavaPlugin {
 		Integer value;
 
 		if (!players.containsKey(name.toLowerCase())) {
-			log.info("Unknown Player Key: " + name.toLowerCase());
-			// database.AddPlayer(name);
+			log.info("Added Player Key: " + name.toLowerCase());
+			database.AddPlayer(name);
 			players = database.getPlayers();
 		}
 
@@ -149,8 +170,8 @@ public class McPlayerStats extends JavaPlugin {
 		Integer value;
 
 		if (!statistics.containsKey(name.toLowerCase())) {
-			log.info("Unknown Statistic Key: " + name.toLowerCase());
-			// database.AddStatistic(name);
+			log.info("Added Statistic Key: " + name.toLowerCase());
+			database.AddStatistic(name);
 			statistics = database.getStatistics();
 
 		}
@@ -163,21 +184,42 @@ public class McPlayerStats extends JavaPlugin {
 		Integer value;
 
 		if (!categories.containsKey(name.toLowerCase())) {
-			log.info("Unknown Category Key: " + name.toLowerCase());
-			// database.AddCategory(name);
+			log.info("Added Category Key: " + name.toLowerCase());
+			database.AddCategory(name);
 			categories = database.getCategories();
 		}
 
 		value = categories.get(name.toLowerCase());
 		return value.intValue();
 	}
+	
+	private void IncrementStatistic(PlayerEvent event)
+	{
+		//These are all events that are single events with no blocks or items.
+		
+		IncrementStatistic(event.getPlayer(), PLAYER_EVENT, event.getEventName().toString(), 1);
+	}
+	
+	private void IncrementStatistic(BlockEvent event, Player player)
+	{
+		//player.sendMessage(String.format("You %1s %2s %3s", event.getEventName().toString(), 1, event.getBlock().getType().toString() ));
+		
+		IncrementStatistic(player, event.getBlock().getType().toString(), event.getEventName().toString(), 1);
+	}
 
+	private void IncrementStatistic(PlayerEvent event, ItemStack item)
+	{
+		//event.getPlayer().sendMessage(String.format("You %1s %2s %3s", event.getEventName().toString(), item.getAmount(), item.getType().toString()));
+		
+		IncrementStatistic(event.getPlayer(), item.getType().toString(), event.getEventName().toString(), item.getAmount());
+	}
+	
 	private void IncrementStatistic(Player player, String statisticName, String categoryName, int amount) {
 		int categoryId;
 		int playerId;
 		int statisticId;
 
-		statisticName = statisticName.replace("_", "");
+		//statisticName = statisticName.replace("_", "");
 
 		try {
 			categoryId = getCategoryId(categoryName);
@@ -186,7 +228,8 @@ public class McPlayerStats extends JavaPlugin {
 
 			database.IncrementPlayerStatistic(playerId, categoryId, statisticId, amount);
 		} catch (Exception e) {
-			log.info("Couldn't increment statistic: " + statisticName + ", category: " + categoryName);
+			log.info("Couldn't increment statistic: " + statisticName + ", category: " + categoryName + ", player: " + player.getDisplayName());
+			log.info(e.toString());
 		}
 	}
 
@@ -196,10 +239,7 @@ public class McPlayerStats extends JavaPlugin {
 		 */
 		@Override
 		public void onPlayerDropItem(PlayerDropItemEvent event) {
-			Player player = event.getPlayer();
-			Material material = event.getItemDrop().getItemStack().getType();
-
-			IncrementStatistic(player, material.toString(), "itemdrop", 1);
+			IncrementStatistic(event, event.getItemDrop().getItemStack());
 		}
 
 		/**
@@ -207,10 +247,7 @@ public class McPlayerStats extends JavaPlugin {
 		 */
 		@Override
 		public void onPlayerPickupItem(PlayerPickupItemEvent event) {
-			Player player = event.getPlayer();
-			Material material = event.getItem().getItemStack().getType();
-
-			IncrementStatistic(player, material.toString(), "itempickup", 1);
+			IncrementStatistic(event, event.getItem().getItemStack());
 		}
 
 		/**
@@ -219,9 +256,9 @@ public class McPlayerStats extends JavaPlugin {
 		@Override
 		public void onPlayerAnimation(PlayerAnimationEvent event) {
 			Player player = event.getPlayer();
-
+			
 			if (event.getAnimationType() == PlayerAnimationType.ARM_SWING) {
-				IncrementStatistic(player, "armswing", "stats", 1);
+				IncrementStatistic(player, event.getAnimationType().toString(), event.getEventName().toString(), 1);
 			}
 		}
 
@@ -230,10 +267,8 @@ public class McPlayerStats extends JavaPlugin {
 		 */
 		@Override
 		public void onPlayerChat(PlayerChatEvent event) {
-			Player player = event.getPlayer();
-
-			IncrementStatistic(player, "chat", "stats", 1);
-			IncrementStatistic(player, "chatletters", "stats", event.getMessage().length());
+			IncrementStatistic(event);
+			IncrementStatistic(event.getPlayer(), "chat_letters", event.getEventName().toString(), event.getMessage().length());
 		}
 
 		/**
@@ -241,9 +276,7 @@ public class McPlayerStats extends JavaPlugin {
 		 */
 		@Override
 		public void onPlayerCommandPreprocess(PlayerCommandPreprocessEvent event) {
-			Player player = event.getPlayer();
-
-			IncrementStatistic(player, "command", "stats", 1);
+			IncrementStatistic(event);
 		}
 
 		/**
@@ -251,9 +284,20 @@ public class McPlayerStats extends JavaPlugin {
 		 */
 		@Override
 		public void onPlayerLogin(PlayerLoginEvent event) {
-			Player player = event.getPlayer();
-
-			IncrementStatistic(player, "login", "stats", 1);
+			Player player;
+        	
+        	player = event.getPlayer();
+        	
+        	playerLastLogin.put(player.getName(), Calendar.getInstance());
+        	
+        	try {
+        		database.UpdatePlayerLastLoggedIn(getPlayerId(player.getName()));			
+			} catch (Exception e) {
+				log.info("Error updating Player Last Logged In value.");
+				log.info(e.toString());
+			}
+			
+			IncrementStatistic(event);
 		}
 
 		/**
@@ -261,9 +305,33 @@ public class McPlayerStats extends JavaPlugin {
 		 */
 		@Override
 		public void onPlayerQuit(PlayerQuitEvent event) {
-			Player player = event.getPlayer();
-
-			IncrementStatistic(player, "logout", "stats", 1);
+			double playerSecondsLoggedIn;
+        	Calendar playerLogin;        	
+        	Player player;
+        	
+        	player = event.getPlayer();
+        	
+        	playerLogin = playerLastLogin.get(player.getName());
+        	
+        	if (playerLogin != null)
+        	{
+        		Calendar now;
+        		
+        		now = Calendar.getInstance();
+        		
+        		playerSecondsLoggedIn = ((now.getTimeInMillis() - playerLogin.getTimeInMillis()) / 1000);
+        		
+        		IncrementStatistic(player, "playedfor", event.getEventName().toString(), (int)playerSecondsLoggedIn);
+        	}
+        	
+        	try {
+        		database.UpdatePlayerLastLoggedOut(getPlayerId(player.getName()));			
+			} catch (Exception e) {
+				log.info("Error updating Player Last Logged Out value.");
+				log.info(e.toString());
+			}
+			
+			IncrementStatistic(event);
 		}
 
 		/**
@@ -299,7 +367,7 @@ public class McPlayerStats extends JavaPlugin {
 
 					if (distance >= 1) {
 						playerLastLocations.put(player.getName(), event.getTo());
-						IncrementStatistic(player, "move", "stats", distance);
+						IncrementStatistic(player, PLAYER_EVENT, event.getEventName(), distance);
 					}
 				}
 
@@ -313,7 +381,7 @@ public class McPlayerStats extends JavaPlugin {
 		public void onPlayerRespawn(PlayerRespawnEvent event) {
 			Player player = event.getPlayer();
 
-			// ?
+			IncrementStatistic(player, PLAYER_EVENT, event.getEventName(), 1);
 		}
 
 		/**
@@ -323,20 +391,20 @@ public class McPlayerStats extends JavaPlugin {
 		public void onPlayerTeleport(PlayerTeleportEvent event) {
 			Player player = event.getPlayer();
 
-			IncrementStatistic(player, "teleport", "stats", 1);
+			//Teleports happens when people use vehicles, enter the world and get pushed back by something
+			//IncrementStatistic(player, PLAYER_EVENT, event.getEventName(), 1);
 		}
 	}
 
+	
+	
 	private class BlockActionListener extends BlockListener {
 		/**
 		 * Count player block places.
 		 */
 		@Override
 		public void onBlockPlace(BlockPlaceEvent event) {
-			Player player = event.getPlayer();
-
-			IncrementStatistic(player, event.getBlockPlaced().getType().toString(), "blockcreate", 1);
-			IncrementStatistic(player, "totalblockcreate", "stats", 1);
+			IncrementStatistic(event, event.getPlayer());
 		}
 
 		/**
@@ -344,10 +412,7 @@ public class McPlayerStats extends JavaPlugin {
 		 */
 		@Override
 		public void onBlockBreak(BlockBreakEvent event) {
-			Player player = event.getPlayer();
-
-			IncrementStatistic(player, event.getBlock().getType().toString(), "blockdestroy", 1);
-			IncrementStatistic(player, "totalblockdestroy", "stats", 1);
+			IncrementStatistic(event, event.getPlayer());
 		}
 	}
 
@@ -400,7 +465,7 @@ public class McPlayerStats extends JavaPlugin {
 							if (distance >= 1) {
 								playerLastLocations.put(key, event.getTo());
 
-								IncrementStatistic(player, "move", categoryName, distance);
+								IncrementStatistic(player, event.getVehicle().toString().replace("Craft", ""), event.getEventName().toString(), distance);
 							}
 						}
 
@@ -415,20 +480,21 @@ public class McPlayerStats extends JavaPlugin {
 		 */
 		@Override
 		public void onVehicleEnter(VehicleEnterEvent event) {
+			Player player; 
+			Vehicle vehicle;
+			
 			Entity passenger = event.getVehicle().getPassenger();
+			
 			if (passenger instanceof Player) {
-				Player player = (Player) passenger;
-
-				String categoryName = null;
-
-				if (event.getVehicle() instanceof Boat) {
-					categoryName = "boat";
-				} else if (event.getVehicle() instanceof Minecart) {
-					categoryName = "minecart";
-				}
-
-				if (categoryName != null) {
-					IncrementStatistic(player, "enter", categoryName, 1);
+				vehicle = event.getVehicle();
+				
+				if (vehicle != null) {
+					player = (Player)passenger;
+				
+					if (player.isInsideVehicle())
+					{
+						IncrementStatistic(player, event.getVehicle().toString().replace("Craft", ""), event.getEventName(), 1);
+					}
 				}
 			}
 		}
@@ -444,107 +510,59 @@ public class McPlayerStats extends JavaPlugin {
     	public void onEntityDamage(EntityDamageEvent event) {
     		Entity damagee = null;
     		// ****************************************************************
-        	Player player = null;
-        	Entity damager = null;
-        	String cause = null;
+        	
+        	Entity damager = null;           	
         	Integer damage = null;
+        	String cause = null;
     		// ****************************************************************
         	
         	/**
         	 * FIRE_TICK causes wierd bugs so check for it first
         	 */
-        	if (event.getCause() == DamageCause.FIRE_TICK) {
+        	//if (event.getCause() == DamageCause.FIRE_TICK) {
     			// ****************************************************************
-            	damagee = event.getEntity();
-				cause = "FIRE";
-				damage = event.getDamage();
-				// ****************************************************************
-				
-				if (damagee instanceof Player){
-					IncrementStatistic(player, cause, "damagetaken", damage.intValue());
-					IncrementStatistic(player, "total", "damagetaken", damage.intValue());
-				}
-			}
-        	/**
-             * Handle damage from blocks (cactus, lava)
-             */
-        	else if (event instanceof EntityDamageByBlockEvent){
-    			EntityDamageByBlockEvent evt = (EntityDamageByBlockEvent)event;
-    			// ****************************************************************
-            	damagee = evt.getEntity();
-            	cause = evt.getCause().toString();
-            	damage = evt.getDamage();
-        		// ****************************************************************
-            	
-            	if (damagee instanceof Player){
-            		player = (Player)damagee;
-            		
-            		if (evt.getDamager() != null) {
-						cause = evt.getDamager().getType().toString();
-					} else {
-						Material material = player.getLocation().getBlock().getType();
-						if (material == Material.LAVA || material == Material.STATIONARY_LAVA) {
-							cause = "LAVA";
-						}
-					}
-            		
-            		lastDamagedBy.put(player, cause);
-            		
-            		IncrementStatistic(player, cause, "damagetaken", damage.intValue());
-            		IncrementStatistic(player, "total", "damagetaken", damage.intValue());            		
-            	}
-    		}
-    		/**
-             * Count player damage from and to other living and undead sources. 
-             */
-    		else if (event instanceof EntityDamageByEntityEvent){
-    			EntityDamageByEntityEvent evt = (EntityDamageByEntityEvent)event;
-    			// ****************************************************************
-            	damagee = evt.getEntity();
-            	damager = evt.getDamager();
-            	cause = evt.getCause().toString();
-            	damage = evt.getDamage();
-        		// ****************************************************************
-            	
-            	if (damagee instanceof Player){
-            		player = (Player)damagee;
-            		lastDamagedBy.put(player, cause);
-            		
-            		IncrementStatistic(player, damager.toString().replace("Craft", ""), "damagetaken", damage.intValue());
-            		IncrementStatistic(player, "total", "damagetaken", damage.intValue());
-            	} else if (damager instanceof Player && damagee instanceof Creature){
-            		player = (Player)damager;
-            		
-            		IncrementStatistic(player, damagee.toString().replace("Craft", ""), "damagedealt", damage.intValue());
-            		IncrementStatistic(player, "total", "damagedealt", damage.intValue());
-            	}
-    		}
-    		/**
-             * Count player damage from and by projectiles (arrows).
-             */
-    		else if (event instanceof EntityDamageByProjectileEvent){
-    			EntityDamageByProjectileEvent evt = (EntityDamageByProjectileEvent)event;
-    			// ****************************************************************
-            	damagee = evt.getEntity();
-            	damager = evt.getDamager();
-            	cause = evt.getCause().toString();
-            	damage = evt.getDamage();
-        		// ****************************************************************
-            	
-            	if (damagee instanceof Player){
-            		player = (Player)damagee;
-            		lastDamagedBy.put(player, cause);
-            		
-            		IncrementStatistic(player, damager.toString().replace("Craft", ""), "damagetaken", damage.intValue());
-            		IncrementStatistic(player, "total", "damagetaken", damage.intValue());
-            		
-            	} else if (damager instanceof Player && damagee instanceof Creature){
-            		player = (Player)damager;
-            		
-            		IncrementStatistic(player, damagee.toString().replace("Craft", ""), "damagedealt", damage.intValue());
-            		IncrementStatistic(player, "total", "damagedealt", damage.intValue());
-            	}
-    		} 
+        	
+        	damagee = event.getEntity();				
+        	damage = event.getDamage(); 
+        	
+        	if (event instanceof EntityDamageByEntityEvent)
+        	{
+        		damager = ((EntityDamageByEntityEvent)event).getDamager();
+        	}
+
+        	if (damagee instanceof Player || damager instanceof Player)
+        	{
+        		if (event instanceof EntityDamageByBlockEvent)
+        		{
+        			if (((EntityDamageByBlockEvent) event).getDamager() != null)
+        			{
+        				cause = ((EntityDamageByBlockEvent)event).getDamager().getType().toString();					
+        			}
+        			else
+        			{
+        				cause = damagee.getLocation().getBlock().getType().toString();
+        			}
+        		} 
+        		else if (damager != null)
+        		{        			
+        			cause = damager.toString();
+        		}
+        		else 
+        		{
+        			cause = event.getCause().toString();
+        		} 
+
+        		cause = cause.replace("Craft", "");
+        		
+        		if (damagee instanceof Player){
+        			lastDamagedBy.put((Player)damagee, cause);
+        			IncrementStatistic((Player)damagee, cause, event.getEventName() + "_TAKEN", damage.intValue());
+        		} 
+        		else
+        		{
+        			IncrementStatistic((Player)damager, damagee.toString().replace("Craft", ""), event.getEventName() + "_DEALT", damage.intValue());
+        		}
+        	}			
     	}
 
 		/**
@@ -565,7 +583,7 @@ public class McPlayerStats extends JavaPlugin {
 					cause = "UNKNOWN";
 				}
 
-				IncrementStatistic(player, "total", "deaths", 1);
+				IncrementStatistic(player, cause, event.getEventName(), 1);
 			}
 		}
 	}
