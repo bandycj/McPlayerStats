@@ -321,7 +321,7 @@ public class McPlayerStats extends JavaPlugin {
         		
         		playerSecondsLoggedIn = ((now.getTimeInMillis() - playerLogin.getTimeInMillis()) / 1000);
         		
-        		IncrementStatistic(player, "playedfor", event.getEventName().toString(), (int)playerSecondsLoggedIn);
+        		IncrementStatistic(player, PLAYER_EVENT, "PLAYED_FOR", (int)playerSecondsLoggedIn);
         	}
         	
         	try {
@@ -393,6 +393,10 @@ public class McPlayerStats extends JavaPlugin {
 
 			//Teleports happens when people use vehicles, enter the world and get pushed back by something
 			//IncrementStatistic(player, PLAYER_EVENT, event.getEventName(), 1);
+			
+			//The game warps players for various reasons, and in the event that respawns, joins etc warp players,
+			//this will reset their last location so they don't get a huge move credit.
+			playerLastLocations.remove(player.getName().toString());
 		}
 	}
 
