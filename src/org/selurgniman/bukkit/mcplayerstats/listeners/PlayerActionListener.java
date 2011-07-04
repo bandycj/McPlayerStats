@@ -141,14 +141,18 @@ public class PlayerActionListener extends PlayerListener
 			playerSecondsLoggedIn = ((now.getTimeInMillis() - playerLogin
 					.getTimeInMillis()) / 1000);
 
-			model.IncrementStatistic(player, "playedfor", event
-					.getEventName()
-					.toString(), (int) playerSecondsLoggedIn);
+			model.IncrementStatistic(
+					player,
+					PlayerStatsModel.PLAYER_EVENT,
+					"PLAYED_FOR",
+					(int) playerSecondsLoggedIn);
 		}
 
 		try
 		{
-			model.updatePlayerLastLoggedOut(model.getPlayerId(player.getName()));
+			model
+					.updatePlayerLastLoggedOut(model.getPlayerId(player
+							.getName()));
 		}
 		catch (Exception e)
 		{
@@ -233,12 +237,15 @@ public class PlayerActionListener extends PlayerListener
 	@Override
 	public void onPlayerTeleport(PlayerTeleportEvent event)
 	{
-		// Player player = event.getPlayer();
-		//
-		// Teleports happens when people use vehicles, enter the world and
-		// get pushed back by something
-		// model.IncrementStatistic(player, PLAYER_EVENT,
-		// event.getEventName(),
-		// 1);
+		Player player = event.getPlayer();
+
+		// Teleports happens when people use vehicles, enter the world and get
+		// pushed back by something
+		// IncrementStatistic(player, PLAYER_EVENT, event.getEventName(), 1);
+
+		// The game warps players for various reasons, and in the event that
+		// respawns, joins etc warp players, this will reset their last location
+		// so they don't get a huge move credit.
+		McPlayerStats.removePlayerLastLocation(player.getName().toString());
 	}
 }

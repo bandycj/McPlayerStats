@@ -129,6 +129,11 @@ public class McPlayerStats extends JavaPlugin
 		playerLastLocations.put(player, location);
 	}
 
+	public static void removePlayerLastLocation(String player)
+	{
+		playerLastLocations.remove(player);
+	}
+	
 	public static Location getPlayerLastLocation(String player)
 	{
 		return playerLastLocations.get(player);
