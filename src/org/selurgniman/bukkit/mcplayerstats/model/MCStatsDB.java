@@ -1,4 +1,4 @@
-package org.selurgniman.bukkit.mcplayerstats;
+package org.selurgniman.bukkit.mcplayerstats.model;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -6,7 +6,8 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.Hashtable;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 public class MCStatsDB {
 
@@ -91,19 +92,19 @@ public class MCStatsDB {
 	}
 	
 	
-	public Hashtable<String, Integer> getPlayers() throws Exception
+	public ConcurrentMap<String, Integer> getPlayers() throws Exception
 	{
-		return ExecuteHashtable("get_players", "Name", "ID");
+		return ExecuteConcurrentMap("get_players", "Name", "ID");
 	}
 
-	public Hashtable<String, Integer> getCategories() throws Exception
+	public ConcurrentMap<String, Integer> getCategories() throws Exception
 	{
-		return ExecuteHashtable("get_categories", "Name", "ID");
+		return ExecuteConcurrentMap("get_categories", "Name", "ID");
 	}
 	
-	public Hashtable<String, Integer> getStatistics() throws Exception
+	public ConcurrentMap<String, Integer> getStatistics() throws Exception
 	{
-		return ExecuteHashtable("get_statistics", "Name", "ID");
+		return ExecuteConcurrentMap("get_statistics", "Name", "ID");
 	}
 	
 	public void UpdatePlayerLastLoggedOut(int playerId) throws SQLException
@@ -161,14 +162,14 @@ public class MCStatsDB {
 		return result;
 	}
 		
-	private Hashtable<String, Integer> ExecuteHashtable(String procedureName, String keyName, String valueName) throws Exception
+	private ConcurrentMap<String, Integer> ExecuteConcurrentMap(String procedureName, String keyName, String valueName) throws Exception
 	{
-		Hashtable<String, Integer> returnValue = null;
+		ConcurrentMap<String, Integer> returnValue = null;
 		ResultSet rs;
 		
 		try {
 			rs = ExecuteResultSet(procedureName);
-			returnValue = new Hashtable<String, Integer>();
+			returnValue = new ConcurrentHashMap<String, Integer>();
 			
 			while (rs.next())
 			{
