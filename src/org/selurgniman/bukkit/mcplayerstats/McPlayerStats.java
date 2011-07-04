@@ -30,10 +30,8 @@ import org.selurgniman.bukkit.mcplayerstats.model.PlayerStatsModel;
  * 
  * @author Dinnerbone
  */
-public class McPlayerStats extends JavaPlugin
-{
-	private final Logger log = Logger.getLogger("Minecraft."
-			+ McPlayerStats.class.getName());
+public class McPlayerStats extends JavaPlugin {
+	private final Logger log = Logger.getLogger("Minecraft." + McPlayerStats.class.getName());
 	private final static ConcurrentMap<Player, Calendar> playerLastLogin = new ConcurrentHashMap<Player, Calendar>();
 	private final static ConcurrentMap<String, Location> playerLastLocations = new ConcurrentHashMap<String, Location>();
 	private static final LinkedHashMap<String, String> CONFIG_DEFAULTS = new LinkedHashMap<String, String>();
@@ -41,18 +39,14 @@ public class McPlayerStats extends JavaPlugin
 	private static List<String> debugPlayers = new ArrayList<String>();
 	private final PlayerStatsModel model = new PlayerStatsModel();
 	private static McPlayerStats self = null;
-	static
-	{
-		CONFIG_DEFAULTS.put(
-				"connectString",
-				"jdbc:sqlserver://127.0.0.1;databaseName=MCStats;");
+	static {
+		CONFIG_DEFAULTS.put("connectString", "jdbc:sqlserver://127.0.0.1;databaseName=MCStats;");
 		CONFIG_DEFAULTS.put("dbUser", "mcsql");
 		CONFIG_DEFAULTS.put("dbPass", "mcsql101");
 		CONFIG_DEFAULTS.put("debugUsers", "none,nada");
 	}
 
-	public void onDisable()
-	{
+	public void onDisable() {
 		// TODO: Place any custom disable code here
 
 		model.close();
@@ -63,149 +57,95 @@ public class McPlayerStats extends JavaPlugin
 		log.info("McPlayerStats shut down");
 	}
 
-	public void onEnable()
-	{
+	public void onEnable() {
 		self = this;
 		loadConfig();
 		model.initialize();
 
-		for (World world : this.getServer().getWorlds())
-		{
-			for (Player player : world.getPlayers())
-			{
-				McPlayerStats
-						.setPlayerLastLogin(player, Calendar.getInstance());
-				log.info("Existing player found: "
-						+ player.getName()
-						+ ". Creating login time as current.");
+		for (World world : this.getServer().getWorlds()) {
+			for (Player player : world.getPlayers()) {
+				McPlayerStats.setPlayerLastLogin(player, Calendar.getInstance());
+				log.info("Existing player found: " + player.getName() + ". Creating login time as current.");
 			}
 		}
 
 		// Register our events
-		PlayerActionListener playerActionListener = new PlayerActionListener(
-				model);
+		PlayerActionListener playerActionListener = new PlayerActionListener(model);
 		BlockActionListener blockActionListener = new BlockActionListener(model);
-		VehicleActionListener vehicleActionListener = new VehicleActionListener(
-				model);
-		EntityActionListener entityActionListener = new EntityActionListener(
-				model);
+		VehicleActionListener vehicleActionListener = new VehicleActionListener(model);
+		EntityActionListener entityActionListener = new EntityActionListener(model);
 
 		PluginManager pm = getServer().getPluginManager();
-		for (Event.Type eventType : Event.Type.values())
-		{
+		for (Event.Type eventType : Event.Type.values()) {
 			String eventName = eventType.toString().toUpperCase();
 
 			// Error said "PLAYER_INVENTORY not supported, so excluding it.
-			if (eventName.startsWith("PLAYER")
-					&& eventType != Event.Type.PLAYER_INVENTORY)
-			{
-				pm.registerEvent(
-						eventType,
-						playerActionListener,
-						Priority.Normal,
-						this);
-			}
-			else if (eventName.startsWith("BLOCK"))
-			{
-				pm.registerEvent(
-						eventType,
-						blockActionListener,
-						Priority.Normal,
-						this);
-			}
-			else if (eventName.startsWith("VEHICLE"))
-			{
-				pm.registerEvent(
-						eventType,
-						vehicleActionListener,
-						Priority.Normal,
-						this);
-			}
-			else if (eventName.startsWith("ENTITY"))
-			{
-				pm.registerEvent(
-						eventType,
-						entityActionListener,
-						Priority.Normal,
-						this);
+			if (eventName.startsWith("PLAYER") && eventType != Event.Type.PLAYER_INVENTORY) {
+				pm.registerEvent(eventType, playerActionListener, Priority.Normal, this);
+			} else if (eventName.startsWith("BLOCK")) {
+				pm.registerEvent(eventType, blockActionListener, Priority.Normal, this);
+			} else if (eventName.startsWith("VEHICLE")) {
+				pm.registerEvent(eventType, vehicleActionListener, Priority.Normal, this);
+			} else if (eventName.startsWith("ENTITY")) {
+				pm.registerEvent(eventType, entityActionListener, Priority.Normal, this);
 			}
 		}
 
 		// EXAMPLE: Custom code, here we just output some info so we can check
 		// all is well
 		PluginDescriptionFile pdfFile = this.getDescription();
-		log.info(pdfFile.getName()
-				+ " version "
-				+ pdfFile.getVersion()
-				+ " is enabled!");
+		log.info(pdfFile.getName() + " version " + pdfFile.getVersion() + " is enabled!");
 
 	}
 
-	public static void setPlayerLastLocation(String player, Location location)
-	{
+	public static void setPlayerLastLocation(String player, Location location) {
 		playerLastLocations.put(player, location);
 	}
 
-	public static void removePlayerLastLocation(String player)
-	{
+	public static void removePlayerLastLocation(String player) {
 		playerLastLocations.remove(player);
 	}
 
-	public static Location getPlayerLastLocation(String player)
-	{
+	public static Location getPlayerLastLocation(String player) {
 		return playerLastLocations.get(player);
 	}
 
-	public static void setPlayerLastLogin(Player player, Calendar calendar)
-	{
+	public static void setPlayerLastLogin(Player player, Calendar calendar) {
 		playerLastLogin.put(player, calendar);
 	}
 
-	public static Calendar getPlayerLastLogin(Player player)
-	{
+	public static Calendar getPlayerLastLogin(Player player) {
 		return playerLastLogin.get(player);
 	}
 
-	public static Configuration getConfig()
-	{
+	public static Configuration getConfig() {
 		return McPlayerStats.config;
 	}
 
-	private void loadConfig()
-	{
+	private void loadConfig() {
 		config = this.getConfiguration();
-		for (Entry<String, String> entry : CONFIG_DEFAULTS.entrySet())
-		{
-			if (config.getProperty(entry.getKey()) == null)
-			{
+		for (Entry<String, String> entry : CONFIG_DEFAULTS.entrySet()) {
+			if (config.getProperty(entry.getKey()) == null) {
 				config.setProperty(entry.getKey(), entry.getValue());
 			}
 		}
 		config.save();
 
-		try
-		{
+		try {
 			String[] debugPlayers = config.getString("debugUsers").split(",");
 			McPlayerStats.debugPlayers = Arrays.asList(debugPlayers);
-		}
-		catch (NullPointerException ex)
-		{
+		} catch (NullPointerException ex) {
 			// debugUsers was undefined in the config file.
 		}
 	}
 
-	public static void debugMsg(String message)
-	{
-		if (self != null && debugPlayers.size() > 0)
-		{
+	public static void debugMsg(String message) {
+		if (self != null && debugPlayers.size() > 0) {
 			List<World> worlds = self.getServer().getWorlds();
-			for (World world : worlds)
-			{
+			for (World world : worlds) {
 				List<Player> players = world.getPlayers();
-				for (Player player : players)
-				{
-					if (debugPlayers.contains(player.getName()))
-					{
+				for (Player player : players) {
+					if (debugPlayers.contains(player.getName())) {
 						player.sendMessage(message);
 					}
 				}
