@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="WINDOWS-1252" standalone="no"?>
 <jardesc>
-    <jar path="D:/Users/Jimmy De La Garza/Desktop/MinecraftServer/plugins/McPlayerStats.jar"/>
+    <jar path="McPlayerStats/McPlayerStats.jar"/>
     <options buildIfNeeded="true" compress="true" descriptionLocation="/McPlayerStats/export.jardesc" exportErrors="true" exportWarnings="true" includeDirectoryEntries="true" overwrite="true" saveDescription="true" storeRefactorings="false" useSourceFolders="false"/>
     <storedRefactorings deprecationInfo="true" structuralOnly="false"/>
     <selectedProjects/>
@@ -11,8 +11,7 @@
         </sealing>
     </manifest>
     <selectedElements exportClassFiles="true" exportJavaFiles="false" exportOutputFolder="false">
-        <file path="/McPlayerStats/plugin.yml"/>
         <javaElement handleIdentifier="=McPlayerStats/src"/>
-        <folder path="/McPlayerStats/lib"/>
+        <file path="/McPlayerStats/plugin.yml"/>
     </selectedElements>
 </jardesc>
